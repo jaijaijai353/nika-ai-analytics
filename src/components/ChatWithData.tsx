@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import {
   ResponsiveContainer,
@@ -13,9 +12,8 @@ type Props = { dataset: any };
 
 const ChatWithData: React.FC<Props> = ({ dataset }) => {
   const [question, setQuestion] = useState("");
-const [answer, setAnswer] = useState<string | null>(null);
-const [suggestions, setSuggestions] = useState<any[]>([]);
   const [answer, setAnswer] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
   const [preview, setPreview] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -75,13 +73,22 @@ const [suggestions, setSuggestions] = useState<any[]>([]);
           </table>
         </div>
       )}
+
+      {/* Chart rendering (optional from backend suggestions) */}
+      {suggestions.map((s, idx) => (
+        <div key={idx} className="mt-6">
+          {renderChart(s, dataset)}
+        </div>
+      ))}
     </div>
   );
 };
 
-const renderChart = (s: any) => {
+// Helper to render charts
+const renderChart = (s: any, dataset: any) => {
   if (!s || !dataset?.rows) return null;
   const data = dataset.rows;
+
   switch (s.type) {
     case "bar":
       return (
