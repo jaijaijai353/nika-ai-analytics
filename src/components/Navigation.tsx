@@ -1,6 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Home, RectangleVertical as CleaningServices, FlipVertical as Analytics, BarChart3, Brain, Database } from 'lucide-react';
+import { 
+  Home, 
+  RectangleVertical as CleaningServices, 
+  FlipVertical as Analytics, 
+  BarChart3, 
+  Brain, 
+  Database 
+} from 'lucide-react';
 
 interface NavigationProps {
   activeTab: string;
@@ -14,6 +21,7 @@ const Navigation: React.FC<NavigationProps> = ({ activeTab, onTabChange }) => {
     { id: 'analytics', label: 'Analytics', icon: Analytics },
     { id: 'visualizations', label: 'Visualizations', icon: BarChart3 },
     { id: 'insights', label: 'AI Insights', icon: Brain },
+    { id: 'chatwithdata', label: 'Chat with Data', icon: Database }, // ✅ new tab
   ];
 
   return (
