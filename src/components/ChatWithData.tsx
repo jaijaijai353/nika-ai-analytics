@@ -18,28 +18,27 @@ const ChatWithData: React.FC<Props> = ({ dataset }) => {
   const [loading, setLoading] = useState(false);
 
   const ask = async () => {
-    if (!dataset || !dataset.rows) return;
+    if (!dataset || !dataset.data) return;
     setLoading(true);
     try {
-      // 🔹 Direct OpenAI API call (no backend)
       const res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": "Bearer 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" // ⬅️ paste key here
+          "Authorization": "Bearer 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" // ✅ put key directly here
         },
         body: JSON.stringify({
           model: "gpt-4o-mini",
           messages: [
             {
               role: "system",
-              content: "You are a data analysis assistant. The user gives a dataset and a question. Reply with insights, sample preview, and chart suggestions in JSON format."
+              content: "You are a data analyst AI. Given a dataset and a question, analyze and return insights, preview rows if useful, and suggest chart types (bar, line, pie, scatter)."
             },
             {
               role: "user",
               content: JSON.stringify({
                 question,
-                data: dataset.rows.slice(0, 50) // send only sample to save tokens
+                dataset: dataset.data.slice(0, 50) // only send sample to reduce token size
               })
             }
           ],
@@ -48,17 +47,23 @@ const ChatWithData: React.FC<Props> = ({ dataset }) => {
       });
 
       const j = await res.json();
-      const content = j.choices?.[0]?.message?.content || "{}";
 
-      // Expecting structured JSON
-      const parsed = JSON.parse(content);
+      // GPT response text
+      const text = j.choices?.[0]?.message?.content || "No answer.";
+      setAnswer(text);
 
-      setAnswer(parsed.answer || "No insights found.");
-      setPreview(Array.isArray(parsed.data_preview) ? parsed.data_preview : []);
-      setSuggestions(Array.isArray(parsed.charts) ? parsed.charts : []);
+      // 🔹 Try to extract structured JSON from GPT response
+      try {
+        const parsed = JSON.parse(text);
+        if (parsed.answer) setAnswer(parsed.answer);
+        if (parsed.data_preview) setPreview(parsed.data_preview);
+        if (parsed.charts) setSuggestions(parsed.charts);
+      } catch {
+        // fallback if GPT gives plain text
+      }
+
     } catch (e) {
-      console.error(e);
-      setAnswer("⚠️ Error: Could not reach OpenAI API.");
+      setAnswer("❌ Failed to connect to OpenAI API.");
     } finally {
       setLoading(false);
     }
@@ -66,7 +71,7 @@ const ChatWithData: React.FC<Props> = ({ dataset }) => {
 
   return (
     <div className="p-4 rounded-2xl border border-gray-800 bg-[#0F1418]">
-      <div className="text-sm text-gray-200 mb-2">Chat with Data (AI-powered)</div>
+      <div className="text-sm text-gray-200 mb-2">Chat with Data (AI powered)</div>
       <div className="flex gap-2">
         <input
           className="flex-1 bg-black/40 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-100"
@@ -104,6 +109,7 @@ const ChatWithData: React.FC<Props> = ({ dataset }) => {
         </div>
       )}
 
+      {/* Multiple chart rendering */}
       {suggestions.length > 0 && (
         <div className="mt-6 space-y-8">
           {suggestions.map((s, idx) => (
@@ -115,10 +121,10 @@ const ChatWithData: React.FC<Props> = ({ dataset }) => {
   );
 };
 
-// 🔹 Chart rendering helper
+// Chart rendering helper
 const renderChart = (s: any, dataset: any) => {
-  if (!s || !dataset?.rows) return null;
-  const data = dataset.rows;
+  if (!s || !dataset?.data) return null;
+  const data = dataset.data;
 
   switch (s.type) {
     case "bar":
@@ -152,7 +158,9 @@ const renderChart = (s: any, dataset: any) => {
         <ResponsiveContainer width="100%" height={300}>
           <PieChart>
             <Pie data={data} dataKey={s.y} nameKey={s.x} cx="50%" cy="50%" outerRadius={100} label>
-              {data.map((_: any, idx: number) => (<Cell key={idx} fill={["#3b82f6", "#10b981", "#f59e0b", "#ef4444"][idx % 4]} />))}
+              {data.map((_: any, idx: number) => (
+                <Cell key={idx} fill={["#3b82f6", "#10b981", "#f59e0b", "#ef4444"][idx % 4]} />
+              ))}
             </Pie>
             <Tooltip />
           </PieChart>
