@@ -21,16 +21,40 @@ const ChatWithData: React.FC<Props> = ({ dataset }) => {
     if (!dataset || !dataset.rows) return;
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/api/query", {
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: dataset.rows, question }),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content:
+                "You are a data analyst. Answer user questions about the dataset. Return JSON with: { answer: string, data_preview: array, suggestions: [{type, x, y}] }",
+            },
+            {
+              role: "user",
+              content: `Dataset: ${JSON.stringify(dataset.rows.slice(0, 30))}
+              Question: ${question}`,
+            },
+          ],
+          temperature: 0,
+        }),
       });
+
       const j = await res.json();
-      setAnswer(j.answer || "No answer.");
-      setPreview(Array.isArray(j.data_preview) ? j.data_preview : []);
+      const raw = j.choices?.[0]?.message?.content || "{}";
+      const parsed = JSON.parse(raw);
+
+      setAnswer(parsed.answer || "No answer.");
+      setPreview(Array.isArray(parsed.data_preview) ? parsed.data_preview : []);
+      setSuggestions(Array.isArray(parsed.suggestions) ? parsed.suggestions : []);
     } catch (e) {
-      setAnswer("Backend not reachable. Please run the Python server.");
+      console.error(e);
+      setAnswer("⚠️ Error: Could not fetch from OpenAI. Check your API key.");
     } finally {
       setLoading(false);
     }
@@ -38,26 +62,34 @@ const ChatWithData: React.FC<Props> = ({ dataset }) => {
 
   return (
     <div className="p-4 rounded-2xl border border-gray-800 bg-[#0F1418]">
-      <div className="text-sm text-gray-200 mb-2">Chat with Data (backend-powered)</div>
+      <div className="text-sm text-gray-200 mb-2">Chat with Data (AI-powered)</div>
       <div className="flex gap-2">
         <input
           className="flex-1 bg-black/40 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-100"
           placeholder="e.g., top 5 by revenue, sum of sales by region"
           value={question}
-          onChange={e => setQuestion(e.target.value)}
+          onChange={(e) => setQuestion(e.target.value)}
         />
-        <button onClick={ask} disabled={loading} className="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm">
+        <button
+          onClick={ask}
+          disabled={loading}
+          className="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm"
+        >
           {loading ? "Asking..." : "Ask"}
         </button>
       </div>
+
       {answer && <div className="mt-3 text-gray-300 text-sm">💡 {answer}</div>}
+
       {preview.length > 0 && (
         <div className="mt-3 max-h-60 overflow-auto text-xs text-gray-200">
           <table className="min-w-full">
             <thead>
               <tr>
                 {Object.keys(preview[0]).map((k) => (
-                  <th key={k} className="text-left pr-3 py-1 border-b border-gray-700">{k}</th>
+                  <th key={k} className="text-left pr-3 py-1 border-b border-gray-700">
+                    {k}
+                  </th>
                 ))}
               </tr>
             </thead>
@@ -65,7 +97,9 @@ const ChatWithData: React.FC<Props> = ({ dataset }) => {
               {preview.map((row, idx) => (
                 <tr key={idx}>
                   {Object.keys(preview[0]).map((k) => (
-                    <td key={k} className="pr-3 py-1 border-b border-gray-800">{String(row[k])}</td>
+                    <td key={k} className="pr-3 py-1 border-b border-gray-800">
+                      {String(row[k])}
+                    </td>
                   ))}
                 </tr>
               ))}
@@ -74,7 +108,6 @@ const ChatWithData: React.FC<Props> = ({ dataset }) => {
         </div>
       )}
 
-      {/* Chart rendering (optional from backend suggestions) */}
       {suggestions.map((s, idx) => (
         <div key={idx} className="mt-6">
           {renderChart(s, dataset)}
@@ -99,7 +132,7 @@ const renderChart = (s: any, dataset: any) => {
             <YAxis />
             <Tooltip />
             <Legend />
-            <Bar dataKey={s.y} />
+            <Bar dataKey={s.y} fill="#3b82f6" />
           </BarChart>
         </ResponsiveContainer>
       );
@@ -112,7 +145,7 @@ const renderChart = (s: any, dataset: any) => {
             <YAxis />
             <Tooltip />
             <Legend />
-            <Line type="monotone" dataKey={s.y} />
+            <Line type="monotone" dataKey={s.y} stroke="#10b981" />
           </LineChart>
         </ResponsiveContainer>
       );
@@ -120,8 +153,18 @@ const renderChart = (s: any, dataset: any) => {
       return (
         <ResponsiveContainer width="100%" height={300}>
           <PieChart>
-            <Pie data={data} dataKey={s.y} nameKey={s.x} cx="50%" cy="50%" outerRadius={100} label>
-              {data.map((_: any, idx: number) => (<Cell key={idx} />))}
+            <Pie
+              data={data}
+              dataKey={s.y}
+              nameKey={s.x}
+              cx="50%"
+              cy="50%"
+              outerRadius={100}
+              label
+            >
+              {data.map((_: any, idx: number) => (
+                <Cell key={idx} fill={["#3b82f6", "#10b981", "#f59e0b", "#ef4444"][idx % 4]} />
+              ))}
             </Pie>
             <Tooltip />
           </PieChart>
@@ -135,7 +178,7 @@ const renderChart = (s: any, dataset: any) => {
             <XAxis dataKey={s.x} />
             <YAxis dataKey={s.y} />
             <Tooltip />
-            <Scatter data={data} />
+            <Scatter data={data} fill="#8b5cf6" />
           </ScatterChart>
         </ResponsiveContainer>
       );
