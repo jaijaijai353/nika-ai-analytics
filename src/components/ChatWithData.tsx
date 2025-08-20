@@ -21,20 +21,44 @@ const ChatWithData: React.FC<Props> = ({ dataset }) => {
     if (!dataset || !dataset.rows) return;
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/api/query", {
+      // 🔹 Direct OpenAI API call (no backend)
+      const res = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
-          "Authorization": "Bearer sk-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" // put key directly if skipping .env
+          "Authorization": "Bearer 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" // ⬅️ paste key here
         },
-        body: JSON.stringify({ data: dataset.rows, question }),
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: "You are a data analysis assistant. The user gives a dataset and a question. Reply with insights, sample preview, and chart suggestions in JSON format."
+            },
+            {
+              role: "user",
+              content: JSON.stringify({
+                question,
+                data: dataset.rows.slice(0, 50) // send only sample to save tokens
+              })
+            }
+          ],
+          temperature: 0.2
+        })
       });
+
       const j = await res.json();
-      setAnswer(j.answer || "No answer.");
-      setPreview(Array.isArray(j.data_preview) ? j.data_preview : []);
-      setSuggestions(Array.isArray(j.charts) ? j.charts : []); // ✅ multiple charts
+      const content = j.choices?.[0]?.message?.content || "{}";
+
+      // Expecting structured JSON
+      const parsed = JSON.parse(content);
+
+      setAnswer(parsed.answer || "No insights found.");
+      setPreview(Array.isArray(parsed.data_preview) ? parsed.data_preview : []);
+      setSuggestions(Array.isArray(parsed.charts) ? parsed.charts : []);
     } catch (e) {
-      setAnswer("Backend not reachable. Please run the Python server.");
+      console.error(e);
+      setAnswer("⚠️ Error: Could not reach OpenAI API.");
     } finally {
       setLoading(false);
     }
@@ -42,7 +66,7 @@ const ChatWithData: React.FC<Props> = ({ dataset }) => {
 
   return (
     <div className="p-4 rounded-2xl border border-gray-800 bg-[#0F1418]">
-      <div className="text-sm text-gray-200 mb-2">Chat with Data (backend-powered)</div>
+      <div className="text-sm text-gray-200 mb-2">Chat with Data (AI-powered)</div>
       <div className="flex gap-2">
         <input
           className="flex-1 bg-black/40 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-100"
@@ -80,7 +104,6 @@ const ChatWithData: React.FC<Props> = ({ dataset }) => {
         </div>
       )}
 
-      {/* ✅ Multiple chart rendering */}
       {suggestions.length > 0 && (
         <div className="mt-6 space-y-8">
           {suggestions.map((s, idx) => (
