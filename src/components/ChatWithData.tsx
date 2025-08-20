@@ -21,40 +21,20 @@ const ChatWithData: React.FC<Props> = ({ dataset }) => {
     if (!dataset || !dataset.rows) return;
     setLoading(true);
     try {
-      const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      const res = await fetch("http://localhost:8000/api/query", {
         method: "POST",
-        headers: {
+        headers: { 
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${import.meta.env.VITE_OPENAI_API_KEY}`,
+          "Authorization": "Bearer sk-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" // put key directly if skipping .env
         },
-        body: JSON.stringify({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content:
-                "You are a data analyst. Answer user questions about the dataset. Return JSON with: { answer: string, data_preview: array, suggestions: [{type, x, y}] }",
-            },
-            {
-              role: "user",
-              content: `Dataset: ${JSON.stringify(dataset.rows.slice(0, 30))}
-              Question: ${question}`,
-            },
-          ],
-          temperature: 0,
-        }),
+        body: JSON.stringify({ data: dataset.rows, question }),
       });
-
       const j = await res.json();
-      const raw = j.choices?.[0]?.message?.content || "{}";
-      const parsed = JSON.parse(raw);
-
-      setAnswer(parsed.answer || "No answer.");
-      setPreview(Array.isArray(parsed.data_preview) ? parsed.data_preview : []);
-      setSuggestions(Array.isArray(parsed.suggestions) ? parsed.suggestions : []);
+      setAnswer(j.answer || "No answer.");
+      setPreview(Array.isArray(j.data_preview) ? j.data_preview : []);
+      setSuggestions(Array.isArray(j.charts) ? j.charts : []); // ✅ multiple charts
     } catch (e) {
-      console.error(e);
-      setAnswer("⚠️ Error: Could not fetch from OpenAI. Check your API key.");
+      setAnswer("Backend not reachable. Please run the Python server.");
     } finally {
       setLoading(false);
     }
@@ -62,19 +42,15 @@ const ChatWithData: React.FC<Props> = ({ dataset }) => {
 
   return (
     <div className="p-4 rounded-2xl border border-gray-800 bg-[#0F1418]">
-      <div className="text-sm text-gray-200 mb-2">Chat with Data (AI-powered)</div>
+      <div className="text-sm text-gray-200 mb-2">Chat with Data (backend-powered)</div>
       <div className="flex gap-2">
         <input
           className="flex-1 bg-black/40 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-100"
           placeholder="e.g., top 5 by revenue, sum of sales by region"
           value={question}
-          onChange={(e) => setQuestion(e.target.value)}
+          onChange={e => setQuestion(e.target.value)}
         />
-        <button
-          onClick={ask}
-          disabled={loading}
-          className="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm"
-        >
+        <button onClick={ask} disabled={loading} className="px-3 py-2 rounded-xl bg-blue-600 text-white text-sm">
           {loading ? "Asking..." : "Ask"}
         </button>
       </div>
@@ -87,9 +63,7 @@ const ChatWithData: React.FC<Props> = ({ dataset }) => {
             <thead>
               <tr>
                 {Object.keys(preview[0]).map((k) => (
-                  <th key={k} className="text-left pr-3 py-1 border-b border-gray-700">
-                    {k}
-                  </th>
+                  <th key={k} className="text-left pr-3 py-1 border-b border-gray-700">{k}</th>
                 ))}
               </tr>
             </thead>
@@ -97,9 +71,7 @@ const ChatWithData: React.FC<Props> = ({ dataset }) => {
               {preview.map((row, idx) => (
                 <tr key={idx}>
                   {Object.keys(preview[0]).map((k) => (
-                    <td key={k} className="pr-3 py-1 border-b border-gray-800">
-                      {String(row[k])}
-                    </td>
+                    <td key={k} className="pr-3 py-1 border-b border-gray-800">{String(row[k])}</td>
                   ))}
                 </tr>
               ))}
@@ -108,16 +80,19 @@ const ChatWithData: React.FC<Props> = ({ dataset }) => {
         </div>
       )}
 
-      {suggestions.map((s, idx) => (
-        <div key={idx} className="mt-6">
-          {renderChart(s, dataset)}
+      {/* ✅ Multiple chart rendering */}
+      {suggestions.length > 0 && (
+        <div className="mt-6 space-y-8">
+          {suggestions.map((s, idx) => (
+            <div key={idx}>{renderChart(s, dataset)}</div>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 };
 
-// Helper to render charts
+// 🔹 Chart rendering helper
 const renderChart = (s: any, dataset: any) => {
   if (!s || !dataset?.rows) return null;
   const data = dataset.rows;
@@ -153,18 +128,8 @@ const renderChart = (s: any, dataset: any) => {
       return (
         <ResponsiveContainer width="100%" height={300}>
           <PieChart>
-            <Pie
-              data={data}
-              dataKey={s.y}
-              nameKey={s.x}
-              cx="50%"
-              cy="50%"
-              outerRadius={100}
-              label
-            >
-              {data.map((_: any, idx: number) => (
-                <Cell key={idx} fill={["#3b82f6", "#10b981", "#f59e0b", "#ef4444"][idx % 4]} />
-              ))}
+            <Pie data={data} dataKey={s.y} nameKey={s.x} cx="50%" cy="50%" outerRadius={100} label>
+              {data.map((_: any, idx: number) => (<Cell key={idx} fill={["#3b82f6", "#10b981", "#f59e0b", "#ef4444"][idx % 4]} />))}
             </Pie>
             <Tooltip />
           </PieChart>
@@ -188,3 +153,4 @@ const renderChart = (s: any, dataset: any) => {
 };
 
 export default ChatWithData;
+
